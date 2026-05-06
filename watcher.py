@@ -27,10 +27,17 @@ async def handler(event):
     sender = await event.get_sender()
     username = sender.username if sender and sender.username else "No username"
 
-    # Keyword detection only
+    # 👤 Join detection (groups only, limited)
+    if not event.is_channel:
+        if "joined the group" in text or "joined" in text:
+            await send_alert(
+                f"👤 Join Detected\nUser: @{username}\nChat: {event.chat.title}"
+            )
+
+    # ⚠️ Keyword detection
     if any(word in text for word in KEYWORDS):
         await send_alert(
-            f"⚠️ Alert from {event.chat.title}\nUser: @{username}\nMessage: {event.raw_text}"
+            f"⚠️ Keyword Alert\nChat: {event.chat.title}\nUser: @{username}\nMessage: {event.raw_text}"
         )
 
 def start_telegram():
