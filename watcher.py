@@ -1,52 +1,55 @@
+import os
+import threading
+from flask import Flask
 from telethon import TelegramClient, events
-import re
 
-# === YOUR CREDENTIALS ===
+# === TELEGRAM CONFIG ===
 api_id = 33087118
 api_hash = "30849ab507d1216cd299e714d23757cf"
 
-# Your Telegram user ID (you'll receive alerts here)
 ADMIN_ID = 795990315  
 
-# Keywords to monitor
-KEYWORDS = ["crypto", "airdrop", "spam", "http"]
+KEYWORDS = ["crypto", "airdrop", "spam"]
 
 client = TelegramClient("watcher_session", api_id, api_hash)
 
-
-# 🚨 Alert function
+# === WATCHER LOGIC ===
 async def send_alert(message):
     await client.send_message(ADMIN_ID, message)
 
-
-# 👀 Watch all incoming messages
 @client.on(events.NewMessage)
 async def handler(event):
+    if event.is_private:
+        return
+
     text = event.raw_text.lower()
 
     sender = await event.get_sender()
-    username = sender.username if sender.username else "No username"
-    name = f"{sender.first_name or ''} {sender.last_name or ''}"
+    username = sender.username if sender and sender.username else "No username"
 
-    # 🔔 1. Detect join messages (if visible)
-    if "joined the group" in text or "joined" in text:
-        await send_alert(
-            f"👤 Possible Join Detected\nName: {name}\nUsername: @{username}"
-        )
-
-    # ⚠️ 2. Keyword detection
+    # Keyword detection only
     if any(word in text for word in KEYWORDS):
         await send_alert(
-            f"⚠️ Keyword Detected\nUser: @{username}\nMessage: {event.raw_text}"
+            f"⚠️ Alert from {event.chat.title}\nUser: @{username}\nMessage: {event.raw_text}"
         )
 
-    # 🔗 3. Link detection
-    if re.search(r"http[s]?://", text):
-        await send_alert(
-            f"🔗 Link Posted\nUser: @{username}\nMessage: {event.raw_text}"
-        )
+def start_telegram():
+    client.start()
+    print("👀 Watcher running...")
+    client.run_until_disconnected()
 
+# === FLASK SERVER (FOR RENDER) ===
+app = Flask(__name__)
 
-print("👀 Userbot watcher is running...")
-client.start()
-client.run_until_disconnected()
+@app.route("/")
+def home():
+    return "Watcher is running!"
+
+if __name__ == "__main__":
+    # Run Telegram in background thread
+    t = threading.Thread(target=start_telegram)
+    t.start()
+
+    # Run web server (required by Render)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
